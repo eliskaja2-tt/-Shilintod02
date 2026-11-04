@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>士林TOD商場經營大挑戰</title>
+<style>
+:root{--bg:#f5f3ee;--card:#fff;--tx:#1f2937;--mu:#6b7280;--ac:#0f766e;--ac2:#fff;--bd:#e5e7eb;--bad:#b91c1c;--ok:#15803d;--sel:#ccfbf1}
+@media (prefers-color-scheme:dark){:root{--bg:#111827;--card:#1f2937;--tx:#f3f4f6;--mu:#9ca3af;--ac:#2dd4bf;--ac2:#042f2e;--bd:#374151;--bad:#f87171;--ok:#4ade80;--sel:#134e4a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC",sans-serif;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0}h2{font-size:19px;margin:8px 0}
+.mu{color:var(--mu);font-size:14px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pill{background:var(--card);border:1px solid var(--bd);border-radius:999px;padding:4px 12px;font-size:14px}
+.steps{display:flex;gap:6px;margin:8px 0}
+.steps i{flex:1;height:6px;border-radius:3px;background:var(--bd)}.steps i.on{background:var(--ac)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:12px;padding:12px;cursor:pointer;text-align:left;color:var(--tx);font:inherit}
+.card.sel{border-color:var(--ac);background:var(--sel)}
+.card.off{opacity:.45;cursor:not-allowed}
+.card b{font-size:16px}
+.btn{background:var(--ac);color:var(--ac2);border:0;border-radius:10px;padding:11px 22px;font:inherit;font-weight:600;cursor:pointer;margin-top:14px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.g{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin:8px 0;flex-wrap:wrap}
+.tog{display:flex;gap:6px}
+.tog button{border:2px solid var(--bd);background:var(--card);color:var(--tx);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.tog button.on{border-color:var(--ac);background:var(--sel);font-weight:600}
+table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;font-size:14px}
+td,th{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:right}td:first-child,th:first-child{text-align:left}
+.pos{color:var(--ok)}.neg{color:var(--bad)}
+.ev{background:var(--card);border-left:6px solid var(--bad);border-radius:12px;padding:14px;margin:10px 0}
+.hint{font-size:13px;color:var(--mu)}
+.meter{height:10px;background:var(--bd);border-radius:5px;overflow:hidden}.meter div{height:100%;background:var(--ac)}
+.big{font-size:42px;margin:0}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const SHOPS=[
+{id:'rest',n:'餐廳',e:'🍜',cat:'餐飲',c:150,r:300,t:4,d:'客單價高、人潮穩'},
+{id:'cafe',n:'咖啡廳',e:'☕',cat:'餐飲',c:80,r:160,t:3,d:'成本低、停留久'},
+{id:'cloth',n:'服飾店',e:'👕',cat:'零售',c:140,r:260,t:3,d:'受季節影響大'},
+{id:'conv',n:'超商',e:'🏪',cat:'生活',c:70,r:200,t:3,d:'通勤族必經'},
+{id:'mart',n:'超市',e:'🛒',cat:'生活',c:160,r:320,t:4,d:'家庭客群主力'},
+{id:'cine',n:'影城',e:'🎬',cat:'娛樂',c:220,r:330,t:5,d:'最強人潮磁鐵,投資高'},
+{id:'book',n:'書店',e:'📚',cat:'零售',c:90,r:120,t:2,d:'形象加分,營收偏低'},
+{id:'gym',n:'健身房',e:'🏋️',cat:'娛樂',c:110,r:170,t:2,d:'會員制、穩定'},
+{id:'beau',n:'美妝店',e:'💄',cat:'零售',c:100,r:190,t:2,d:'毛利高、客群年輕'}];
+const BUDGET=600,SLOTS=6,FIX=0.20,PCT=0.22;
+const EVENTS=[
+{t:'📉 人潮減少',d:'附近捷運工程施工,周邊人流突然下降。',base:{pop:-12},opts:[
+ {n:'舉辦行銷檔期',x:'花費40萬,人氣+10',cost:40,pop:10},
+ {n:'減租讓利給店家',x:'本季租金收入×0.85,人氣+3',mult:.85,pop:3},
+ {n:'靜觀其變',x:'不花錢,但人氣再-5',pop:-5}]},
+{t:'🚪 店家退租',d:'一家店家因經營不善提前退租,留下空位。',base:{leave:true},opts:[
+ {n:'補貼裝修招新店',x:'花費60萬,隨機引進一家新店(採抽成)',cost:60,addShop:true},
+ {n:'改作快閃活動空間',x:'花費20萬,人氣+6',cost:20,pop:6},
+ {n:'維持空置',x:'不花錢,人氣-3',pop:-3}]},
+{t:'🍜 熱門餐廳大排長龍',d:'餐廳人潮爆量,排隊人龍堵住走道,客訴增加。',base:{},opts:[
+ {n:'增設候位座位與動線',x:'花費30萬,人氣+8',cost:30,pop:8},
+ {n:'導流到其他店家',x:'花費10萬,人氣+4,本季收入×1.05',cost:10,pop:4,mult:1.05},
+ {n:'不處理',x:'不花錢,人氣-6',pop:-6}]}];
+const $=id=>SHOPS.find(s=>s.id===id);
+let S;
+function init(){S={lvl:0,owned:[],modes:{},pop:0,hist:[],ev:0,done:false};render()}
+function popOf(){const o=S.owned.map($);const cats=new Set(o.map(s=>s.cat)).size;return Math.min(95,20+o.reduce((a,s)=>a+s.t*3,0)+cats*4)}
+function spent(){return S.owned.reduce((a,i)=>a+$(i).c,0)}
+function $f(n){return Math.round(n)}
+function top(){const n=['商場開幕前招商','如何讓商場賺更多','商場危機處理','結算成績'];
+ return `<h1>🚇 士林TOD商場經營大挑戰</h1><div class="steps">${n.map((_,i)=>`<i class="${i<=S.lvl-1?'on':''}"></i>`).join('')}</div>
+ ${S.lvl?`<div class="mu">第${S.lvl}關:${n[S.lvl-1]}</div>`:''}`}
+function stats(){return `<div class="bar"><span class="pill">💰 預算剩 ${BUDGET-spent()} 萬</span><span class="pill">🏬 店家 ${S.owned.length}/${SLOTS}</span><span class="pill">🔥 人氣 ${S.pop}</span></div>`}
+function render(){
+ const a=document.getElementById('app');
+ if(S.lvl===0){a.innerHTML=`<h1>🚇 士林TOD商場經營大挑戰</h1>
+ <p>你是士林捷運站旁TOD商場的營運總監。請完成四個關卡,在一年(四季)內,讓商場賺得多、人氣旺、成本低。</p>
+ <div class="row"><span>① 招商 ② 租金模式 ③ 危機處理 ④ 成績結算</span></div>
+ <p class="hint">單位皆為「萬元」。招商成本代表裝修補貼與招商費用。</p>
+ <button class="btn" onclick="S.lvl=1;render()">開始遊戲</button>`;return}
+ if(S.lvl===1){
+  const left=BUDGET-spent();
+  a.innerHTML=top()+`<h2>選擇進駐店家</h2><p class="mu">初始預算 ${BUDGET} 萬,最多 ${SLOTS} 間。注意:業種多元會提升人氣,影城等人潮磁鐵能帶動全場。</p>`+stats()+
+  `<div class="grid">${SHOPS.map(s=>{const on=S.owned.includes(s.id),dis=!on&&(s.c>left||S.owned.length>=SLOTS);
+   return `<button class="card ${on?'sel':''} ${dis?'off':''}" onclick="pick('${s.id}')"><b>${s.e} ${s.n}</b> <span class="mu">${s.cat}</span><br>
+   招商成本 ${s.c} 萬<br>季營收潛力 ${s.r} 萬<br>人潮貢獻 ${'★'.repeat(s.t)}<br><span class="hint">${s.d}</span></button>`}).join('')}</div>
+  <button class="btn" ${S.owned.length<3?'disabled':''} onclick="S.lvl=2;render()">下一關(至少3間)</button>`;return}
+ if(S.lvl===2){
+  const m=0.5+S.pop/100;
+  a.innerHTML=top()+`<h2>固定租金 vs 營業額抽成</h2><p class="mu">固定租金 = 營收潛力×${FIX*100}% 穩定入袋;抽成 = 實際營業額×${PCT*100}%,人氣高時賺更多,人氣低時較少。</p>`+stats()+
+  S.owned.map(i=>{const s=$(i),f=FIX*s.r,p=PCT*s.r*m;
+   return `<div class="row"><div><b>${s.e} ${s.n}</b><br><span class="hint">預估季收入:固定 ${$f(f)} 萬|抽成 ${$f(p)} 萬</span></div>
+   <div class="tog"><button class="${S.modes[i]==='fix'?'on':''}" onclick="mode('${i}','fix')">固定租金</button><button class="${S.modes[i]==='pct'?'on':''}" onclick="mode('${i}','pct')">營業額抽成</button></div></div>`}).join('')+
+  `<p class="hint">提示:抽成收益取決於人氣。人氣低於約 41 時,固定租金較有利。</p><button class="btn" onclick="startOp()">🎉 商場開幕!進入第1季</button>`;return}
+ if(S.lvl===3){
+  const last=S.hist[S.hist.length-1];
+  const res=`<table><tr><th>季度</th><th>人氣</th><th>租金收入</th><th>營運成本</th><th>事件花費</th></tr>${S.hist.map((h,i)=>`<tr><td>Q${i+1}</td><td>${h.pop}</td><td>${$f(h.inc)}</td><td>${h.op}</td><td>${h.ev}</td></tr>`).join('')}</table>`;
+  if(S.ev>=3&&S.done){a.innerHTML=top()+`<h2>第4季結束</h2>`+res+`<button class="btn" onclick="S.lvl=4;render()">查看最終成績</button>`;return}
+  if(S.waitNext){a.innerHTML=top()+`<h2>本季營運結果</h2>`+res+`<button class="btn" onclick="S.waitNext=false;S.ev<3?render():finish()">${S.ev<3?'下一個事件':'進入結算'}</button>`;return}
+  const e=EVENTS[S.ev];
+  a.innerHTML=top()+stats()+`<div class="ev"><h2>${e.t}(第${S.ev+2}季前)</h2><p>${e.d}</p></div><h2>你要怎麼做?</h2>`+
+  e.opts.map((o,i)=>`<button class="card" style="width:100%;margin:6px 0" onclick="choose(${i})"><b>${o.n}</b><br><span class="hint">${o.x}</span></button>`).join('')+
+  `<p class="hint">上一季:人氣 ${last.pop},租金收入 ${$f(last.inc)} 萬</p>`;return}
+ if(S.lvl===4)final();
+}
+function pick(id){const i=S.owned.indexOf(id);if(i>=0)S.owned.splice(i,1);else{const s=$(id);if(s.c>BUDGET-spent()||S.owned.length>=SLOTS)return;S.owned.push(id)}S.pop=popOf();render()}
+function mode(i,m){S.modes[i]=m;render()}
+function startOp(){S.owned.forEach(i=>{if(!S.modes[i])S.modes[i]='pct'});S.lvl=3;S.ev=0;S.hist=[];S.cost=0;sim(0,1);S.waitNext=true;render()}
+function sim(evCost,mult){
+  let inc=0;const m=0.5+S.pop/100;
+  S.owned.forEach(i=>{const s=$(i);const sales=s.r*m*(0.85+Math.random()*0.3);inc+=(S.modes[i]==='fix'?FIX*s.r:PCT*sales)*mult});
+  S.hist.push({pop:S.pop,inc,op:30+5*S.owned.length,ev:evCost,shops:[...S.owned],modes:{...S.modes},mult});
+}
+function choose(i){
+  const e=EVENTS[S.ev],o=e.opts[i];
+  if(e.base.pop)S.pop=Math.max(5,S.pop+e.base.pop);
+  if(e.base.leave&&S.owned.length>1){const r=S.owned[Math.floor(Math.random()*S.owned.length)];S.owned=S.owned.filter(x=>x!==r);delete S.modes[r];S.pop=Math.max(5,S.pop-$(r).t*3)}
+  if(o.addShop){const c=SHOPS.filter(s=>!S.owned.includes(s.id));if(c.length){const n=c[Math.floor(Math.random()*c.length)];S.owned.push(n.id);S.modes[n.id]='pct';S.pop=Math.min(95,S.pop+n.t*3)}}
+  if(o.pop)S.pop=Math.max(5,Math.min(95,S.pop+o.pop));
+  sim(o.cost||0,o.mult||1);
+  S.ev++;S.waitNext=true;if(S.ev>=3)S.done=false;render();
+}
+function finish(){S.done=true;render()}
+function final(){
+  const H=S.hist,inv=spent()+0;
+  const invest=S.investTotal||(S.investTotal=startInvest());
+  const income=H.reduce((a,h)=>a+h.inc,0),op=H.reduce((a,h)=>a+h.op,0),ev=H.reduce((a,h)=>a+h.ev,0);
+  const net=income-op-ev-invest,avg=H.reduce((a,h)=>a+h.pop,0)/H.length;
+  const ref=md=>H.reduce((a,h)=>a+h.shops.reduce((b,i)=>{const s=$(i);return b+(md==='fix'?FIX*s.r:PCT*s.r*(0.5+h.pop/100)*h.mult)},0),0)-op-ev-invest;
+  const rf=ref('fix'),rp=ref('pct');
+  const score=Math.max(0,Math.min(100,Math.round(50+net/8+(avg-50)/2)));
+  const g=score>=85?'S 傑出總監':score>=70?'A 優秀':score>=55?'B 及格':'C 再加油';
+  const cl=n=>n>=0?'pos':'neg';
+  document.getElementById('app').innerHTML=top()+`<div style="text-align:center"><p class="big">${score>=70?'🏆':score>=55?'👍':'💪'}</p><h2>${g}(${score} 分)</h2></div>
+  <table><tr><th>項目</th><th>數值(萬元)</th></tr>
+  <tr><td>四季租金總收入</td><td>${$f(income)}</td></tr>
+  <tr><td>招商投入成本</td><td>-${invest}</td></tr>
+  <tr><td>營運成本</td><td>-${op}</td></tr>
+  <tr><td>危機處理花費</td><td>-${ev}</td></tr>
+  <tr><th>淨收益</th><th class="${cl(net)}">${$f(net)}</th></tr>
+  <tr><td>平均商場人氣</td><td>${$f(avg)} / 100</td></tr></table>
+  <div class="meter" style="margin:10px 0"><div style="width:${avg}%"></div></div>
+  <h2>策略比較(同一組店家與人氣)</h2>
+  <table><tr><th>租金模式</th><th>預期淨收益</th></tr>
+  <tr><td>你的混合策略(實際)</td><td class="${cl(net)}">${$f(net)}</td></tr>
+  <tr><td>全部固定租金</td><td class="${cl(rf)}">${$f(rf)}</td></tr>
+  <tr><td>全部營業額抽成</td><td class="${cl(rp)}">${$f(rp)}</td></tr></table>
+  <p class="hint">${rp>rf?'本局人氣夠高,抽成整體優於固定租金;但抽成較吃景氣。':'本局人氣偏低或遇到危機,固定租金較能保障收入。'}實際結果含營業額的隨機波動。</p>
+  <button class="btn" onclick="S.investTotal=0;init()">🔁 再玩一次,試試不同策略</button>`;
+}
+function startInvest(){
+  // 開幕時招商總成本 = 第1季店家成本 + 事件補貼已列入危機花費
+  return S.hist[0].shops.reduce((a,i)=>a+$(i).c,0);
+}
+init();
+</script>
+</body>
+</html>
